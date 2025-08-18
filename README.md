@@ -1,3 +1,59 @@
+Constructing the Transaction Dependency DAG
+After the parallel speculative execution phase (Phase 1), you have the Read Set R(T) and Write Set W(T) for every transaction T in the proposed block. You can now build the graph.
+
+1. Nodes: Each transaction T_i in the block becomes a node in the DAG.
+
+2. Edges: A directed edge is drawn from transaction T_A to T_B (i.e., T_A -> T_B) if T_B depends on a state change made by T_A. This occurs if any of the following classic data hazards are present, assuming T_A comes before T_B in the initial proposed order:
+
+Read-After-Write (RAW): T_B reads a state slot that T_A writes to.
+
+W(T_A) ∩ R(T_B) ≠ ∅
+
+Write-After-Write (WAW): T_B writes to the same state slot that T_A writes to.
+
+W(T_A) ∩ W(T_B) ≠ ∅
+
+Write-After-Read (WAR): T_B writes to a state slot that T_A reads from.
+
+R(T_A) ∩ W(T_B) ≠ ∅
+
+An edge T_A -> T_B means "T_A must be finalized before T_B can be validated."
+
+Example Scenario
+Imagine a block with four transactions that have been speculatively executed:
+
+T1: Writes to storage slot 0x100.
+
+T2: Reads from storage slot 0x100 and writes to account balance 0xAAAA.
+
+T3: Reads from account balance 0xAAAA.
+
+T4: Reads and writes to storage slot 0x200.
+
+The resulting DAG would look like this:
+
+Nodes: T1, T2, T3, T4.
+
+Edges:
+
+T1 -> T2: A RAW dependency exists because T2 reads the storage slot 0x100 that T1 writes.
+
+T2 -> T3: A RAW dependency exists because T3 reads the account balance 0xAAAA that T2 writes.
+
+Structure: The graph shows a dependency chain T1 -> T2 -> T3. Transaction T4 is an isolated node because its access list (0x200) does not overlap with any others.
+
+Using the DAG in the OCC Workflow 🗺️
+Building this DAG fundamentally enhances the validation phase (Phase 2).
+
+Identify Independent Groups: The DAG immediately reveals transactions and subgraphs that are completely independent. In our example, T4 is independent of the T1-T2-T3 chain. This means the speculative results for T4 can be considered valid and committed without waiting for the others. You can process all such disconnected components of the graph in parallel.
+
+Efficient Invalidation: The graph structure contains dependency information. If, during validation, you discover that a transaction T_X must be re-executed (e.g., due to a conflict with a transaction from a previous block not accounted for), you don't need to re-evaluate every subsequent transaction. You only need to invalidate and re-execute T_X and all of its descendants in the DAG (i.e., all transactions reachable from T_X).
+
+Topological Sort for Committing: To finalize the block, you perform a topological sort on the DAG. This produces a linear ordering of transactions that respects all dependencies. You can then iterate through this sorted list to commit the results, re-executing only when a transaction's parent in the graph was changed.
+
+This DAG-based approach transforms the validation process from a simple linear scan into a more intelligent, structured analysis of the block's internal dependencies, maximizing parallelism and minimizing re-execution work.
+
+-----OG-----
 # EIP-7928 Block Access Lists Implementation
 
 Implementation of [EIP-7928 Block-Level Access Lists (BALs)](https://eips.ethereum.org/EIPS/eip-7928) for Ethereum blockchain analysis with comprehensive SSZ vs RLP encoding comparison.
