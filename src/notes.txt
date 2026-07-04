@@ -1,0 +1,32 @@
+optimizing the
+execution order of independent operators based on a cost model considering operator execution time, data transfer
+volume, and interconnect bandwidth. The compiler schedules prefetch operations just in time—early enough to
+complete before their use, yet late enough to minimize memory footprint—ensuring that remote memory latency is
+consistently hidden behind computation
+memory transfers transition from being implicit
+side effects to visible components that can actively participate in dependency analysis and scheduling decisions.
+
+"""
+Algorithm 1 Graph-Driven Execution-Order Optimization
+Require: Computation graph G = (V, E) with cache operators
+Require: Execution cost Ccomp(v) for v ∈ V
+Require: Transfer cost Ctrans(c) for cache operator c
+Ensure: Refined execution order O
+1: O ← topo(G)
+2: C ← {c ∈ O | c is independent cache operator}
+3: for each c ∈ C do
+4: u ← first consumer of c
+5: Posc ← feasible positions of c in O
+6: for each p ∈ Posc do
+7: Ttrans(c, p) ← transfer completion time at p
+8: Loverlap(c, p) ← overlap with computation before u
+9: C(p) ← cost function based on latency and memory
+10: end for
+11: p
+∗ ← arg minp∈Posc C(p)
+12: O ← O[c → p
+∗
+]
+13: end for
+14: return O
+"""
